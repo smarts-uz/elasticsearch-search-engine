@@ -1,0 +1,44 @@
+services:
+  opensearch:
+    image: opensearchproject/opensearch:latest
+    container_name: opensearch
+    environment:
+      - discovery.type=single-node
+      - bootstrap.memory_lock=true
+      - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m"
+      - plugins.security.disabled=true   # test uchun xavfsizlikni o‘chirib turamiz
+      - OPENSEARCH_INITIAL_ADMIN_PASSWORD="G7!tQz@e9V#pLm2^Xs$kWf"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - opensearch-data:/usr/share/opensearch/data
+    ports:
+      - 9200:9200
+      - 9600:9600  # monitoring port
+    networks:
+      - opensearch-net
+  sync-service:
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+    container_name: sync-service
+    depends_on:
+      - opensearch
+    environment:
+      - PGUSER=postgres
+      - PGPASSWORD=c21hcnRza29tb2x0ZWFt
+      - PGHOST=192.168.3.56
+      - PGDATABASE=postgres
+      - PGPORT=5444
+    volumes:
+      - .:/app
+    networks:
+      - opensearch-net
+
+volumes:
+  opensearch-data:
+
+networks:
+  opensearch-net:
