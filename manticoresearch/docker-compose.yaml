@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  manticore:
+    image: manticoresearch/manticore
+    container_name: manticore
+    restart: always
+    ports:
+      - "9306:9306"
+      - "9308:9308"
+    volumes:
+      - ./manticore.conf:/etc/manticoresearch/manticore.conf
+      - ./data:/var/lib/manticore
+    # ⚡️ Shu yerda indexer --all + searchd ishga tushadi
+    command: >
+      bash -c "
+        echo '🧱 Starting initial indexing...';
+        indexer --all &&
+        echo '✅ Indexing done, starting searchd...' &&
+        searchd --nodetach
+      "
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9308/cli/json/search?q=test"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
