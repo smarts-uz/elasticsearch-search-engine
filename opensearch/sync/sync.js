@@ -24,17 +24,50 @@ export async function incrementalSync() {
     for (const table of TABLES_TO_SYNC) {
       console.log(`🔄 ${table} jadvali incremental sync qilinmoqda...`);
 
-      await osClient.indices.create({ index: table }, { ignore: [400] });
+      // 1️⃣ Indeks mavjud bo‘lmasa, yaratamiz translit analyzer bilan
+      await osClient.indices.create({
+        index: table,
+        body: {
+          settings: {
+            analysis: {
+              analyzer: {
+                translit_analyzer: {
+                  tokenizer: 'standard',
+                  filter: ['lowercase', 'russian_translit']
+                }
+              },
+              filter: {
+                russian_translit: {
+                  type: 'icu_transform',
+                  id: 'Any-Latin; Latin-Cyrillic'
+                }
+              }
+            }
+          },
+          mappings: {
+            properties: {
+              name: {
+                type: 'text',
+                analyzer: 'translit_analyzer',
+                search_analyzer: 'translit_analyzer'
+              }
+              // agar boshqa text maydonlar ham translit kerak bo‘lsa, shu yerga qo‘shing
+            }
+          }
+        }
+      }, { ignore: [400] }); // 400 = index already exists
 
-      // Faqat o‘zgargan yoki yangi yozuvlarni olamiz
+      // 2️⃣ Faqat o‘zgargan yoki yangi yozuvlarni olamiz
       const { rows } = await pgPool.query(
         `SELECT * FROM ${table} WHERE updated_at > $1`,
         [lastSyncTime]
       );
 
+      // 3️⃣ Hujjatlarni indexlash
       for (const row of rows) {
         await osClient.index({
           index: table,
+          id: row.id, // optional: primary key bilan collision oldini olamiz
           body: row,
         });
       }

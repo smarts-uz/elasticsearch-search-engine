@@ -1,17 +1,4 @@
-FROM node:20-alpine
+FROM opensearchproject/opensearch:1.3.9
 
-WORKDIR /app
-
-COPY package*.json ./
-RUN npm install
-
-COPY sync.js scheduler.js ./
-
-# kerakli utilitlar
-RUN apk add --no-cache bash curl tzdata
-
-# vaqt zonasini o‘rnatish (optional)
-ENV TZ=Asia/Tashkent
-
-# container doimiy ishlaydi
-CMD ["node", "scheduler.js"]
+# ICU pluginni o'rnatish
+RUN /usr/share/opensearch/bin/opensearch-plugin install --batch analysis-icu

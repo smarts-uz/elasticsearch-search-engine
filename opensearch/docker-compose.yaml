@@ -1,6 +1,8 @@
 services:
   opensearch:
-    image: opensearchproject/opensearch:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: opensearch
     environment:
       - discovery.type=single-node
@@ -21,8 +23,8 @@ services:
       - opensearch-net
   sync-service:
     build:
-      context: .
-      dockerfile: ./Dockerfile
+      context: ./sync
+      dockerfile: Dockerfile
     container_name: sync-service
     depends_on:
       - opensearch
@@ -32,8 +34,6 @@ services:
       - PGHOST=192.168.3.56
       - PGDATABASE=postgres
       - PGPORT=5444
-    volumes:
-      - .:/app
     networks:
       - opensearch-net
 

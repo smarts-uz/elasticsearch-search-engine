@@ -1,0 +1,17 @@
+version: '3.9'
+
+services:
+  datafari:
+    image: datafari/datafari:latest
+    container_name: datafari_app
+    ports:
+      - "8081:8080"
+      - "8443:8443"
+    environment:
+      JAVA_OPTS: "-Xms2g -Xmx4g"
+    volumes:
+      - datafari_data:/opt/datafari/data
+    restart: unless-stopped
+
+volumes:
+  datafari_data:

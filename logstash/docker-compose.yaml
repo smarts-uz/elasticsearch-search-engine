@@ -2,25 +2,34 @@ version: "3.8"
 
 services:
 
+
   elasticsearch:
-    image: docker.elastic.co/elasticsearch/elasticsearch:8.15.1
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.15.0
     container_name: elasticsearch
     environment:
       - discovery.type=single-node
-      - ES_JAVA_OPTS=-Xms1g -Xmx1g
       - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms1g -Xmx1g
     ports:
       - "9200:9200"
     volumes:
       - esdata:/usr/share/elasticsearch/data
+      - ./setup:/usr/share/elasticsearch/config/setup
+    command: >
+      bash -c "
+      elasticsearch-plugin install --batch analysis-icu &&
+      /usr/local/bin/docker-entrypoint.sh elasticsearch &
+      sleep 40 &&
+      bash /usr/share/elasticsearch/config/setup/init.sh
+      "
   
   logstash:
     image: docker.elastic.co/logstash/logstash:8.15.1
     container_name: logstash
     volumes:
-      - ./logstash/drivers/postgresql.jar:/usr/share/logstash/config/postgresql.jar
-      - ./logstash/pipeline.yml:/usr/share/logstash/config/pipelines.yml
-      - ./logstash/pipeline/:/usr/share/logstash/pipeline/
+      - ./drivers/postgresql.jar:/usr/share/logstash/config/postgresql.jar
+      - ./pipeline.yml:/usr/share/logstash/config/pipelines.yml
+      - ./pipeline/:/usr/share/logstash/pipeline/
     depends_on:
       - elasticsearch
 

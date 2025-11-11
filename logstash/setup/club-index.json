@@ -1,0 +1,30 @@
+{
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "translit_ru_en": {
+          "tokenizer": "standard",
+          "filter": ["lowercase", "russian_to_latin"]
+        }
+      },
+      "filter": {
+        "russian_to_latin": {
+          "type": "icu_transform",
+          "id": "Cyrillic-Latin"
+        }
+      }
+    }
+  },
+  "mappings": {
+    "properties": {
+      "id": { "type": "integer" },
+      "name": {
+        "type": "text",
+        "analyzer": "translit_ru_en",
+        "fields": {
+          "keyword": { "type": "keyword" }
+        }   
+      }
+    }
+  }
+}
