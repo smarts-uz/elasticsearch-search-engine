@@ -14,7 +14,10 @@ const osClient = new Client({
   node: process.env.OPENSEARCH_NODE || 'http://opensearch:9200',
 });
 
-const TABLES_TO_SYNC = ['player', 'club', 'team'];
+// Read tables to sync from environment variable, fallback to default if not provided
+const TABLES_TO_SYNC = process.env.TABLES_TO_SYNC 
+  ? process.env.TABLES_TO_SYNC.split(',').map(table => table.trim())
+  : ['player', 'club', 'team'];
 
 // Oxirgi sync vaqtini saqlash (yoki fayl/db)
 let lastSyncTime = new Date(0); // dastlab 1970
