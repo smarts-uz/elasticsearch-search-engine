@@ -8,7 +8,7 @@ const pgPool = new Pool({
   user: process.env.PG_USER,
   host: process.env.PG_HOST,
   database: process.env.PG_DATABASE,
-  password: process.env.PG_PASSWORD ,
+  password: process.env.PG_PASSWORD,
   port: process.env.PG_PORT,
 });
 
@@ -16,7 +16,6 @@ const osClient = new Client({
   node: process.env.OPENSEARCH_NODE || 'http://localhost:9200',
 });
 
-// Tables to sync
 const TABLES_TO_SYNC = process.env.TABLES_TO_SYNC 
   ? process.env.TABLES_TO_SYNC.split(',').map(t => t.trim())
   : ["player", "club", "team", "user", "match", "player_result", "player_point"];
@@ -28,6 +27,7 @@ export async function incrementalSync() {
     for (const table of TABLES_TO_SYNC) {
       console.log(`🔄 ${table} jadvali incremental sync qilinmoqda...`);
 
+      // Indexni yaratish (agar oldin mavjud bo'lsa - ignore)
       await osClient.indices.create({
         index: table,
         body: {
@@ -49,11 +49,7 @@ export async function incrementalSync() {
           },
           mappings: {
             properties: {
-              name: {
-                type: 'text',
-                analyzer: 'translit_analyzer',
-                search_analyzer: 'translit_analyzer'
-              },
+              name: { type: 'text', analyzer: 'translit_analyzer' },
               geo: { type: 'geo_point' },
               agent: { type: 'object' }
             }
@@ -61,25 +57,27 @@ export async function incrementalSync() {
         }
       }, { ignore: [400] });
 
-      const { rows } = await pgPool.query(
-        `SELECT * FROM "${table}" WHERE updated_at > $1`,
+      // 1️⃣ Yangi yoki yangilangan qatorlarni olish
+      const { rows: updatedRows } = await pgPool.query(
+        `SELECT * FROM "${table}" 
+         WHERE updated_at > $1 
+           AND deleted_at IS NULL`,
         [lastSyncTimes[table]]
       );
 
-      if (rows.length === 0) {
-        console.log(`ℹ  ${table} jadvalida yangi yozuv yo'q.`);
-        continue;
+      // SCHEMA aniqlash (bir marta)
+      let schema = {};
+      if (updatedRows.length > 0) {
+        const sample = updatedRows[0];
+        for (const key of Object.keys(sample)) {
+          if (key === 'geo') schema[key] = 'geo_point';
+          else if (key === 'agent') schema[key] = 'object';
+          else schema[key] = 'other';
+        }
       }
 
-      const schema = {};
-      const sample = rows[0];
-      for (const key of Object.keys(sample)) {
-        if (key === 'geo') schema[key] = 'geo_point';
-        else if (key === 'agent') schema[key] = 'agent';
-        else schema[key] = 'other';
-      }
-
-      for (const row of rows) {
+      // 2️⃣ OpenSearchga insert/update
+      for (const row of updatedRows) {
         const normalizedRow = normalizeRow(row, schema);
         await osClient.index({
           index: table,
@@ -88,16 +86,38 @@ export async function incrementalSync() {
         });
       }
 
-      console.log(`✅ ${rows.length} yozuv ${table} dan OpenSearch ga yuklandi.`);
+      if (updatedRows.length > 0)
+        console.log(`✅ ${updatedRows.length} yozuv sync qilindi (${table}).`);
+      else
+        console.log(`ℹ ${table} jadvalida yangilangan yozuv yo‘q.`);
 
+      // 3️⃣ DELETED qatorlarni topish
+      const { rows: deletedRows } = await pgPool.query(
+        `SELECT id FROM "${table}" 
+         WHERE deleted_at IS NOT NULL
+           AND deleted_at > $1`,
+        [lastSyncTimes[table]]
+      );
+
+      // 4️⃣ OpenSearchdan DELETE qilish
+      for (const d of deletedRows) {
+        await osClient.delete({
+          index: table,
+          id: d.id,
+        }).catch(() => {}); // Agar mavjud bo'lmasa error bermasin
+      }
+
+      if (deletedRows.length > 0)
+        console.log(`🗑 ${deletedRows.length} ta yozuv OpenSearchdan o‘chirildi (${table}).`);
+
+      // Sync time yangilash
       lastSyncTimes[table] = new Date();
     }
 
-    // 6️⃣ Faylga saqlash
+    // 5️⃣ Sync vaqtlarini saqlash
     saveLastSyncTimes(lastSyncTimes);
 
   } catch (err) {
     console.error('❌ Incremental sync xatolik:', err);
   }
 }
-incrementalSync()
