@@ -35,7 +35,7 @@ services:
       - PGDATABASE=postgres
       - PGPORT=5444
       - OPENSEARCH_NODE=http://opensearch:9200
-      - TABLES_TO_SYNC=player,club,team
+      - TABLES_TO_SYNC=player,club,team,user,match,player_result,player_point
     networks:
       - opensearch-net
 
