@@ -67,7 +67,7 @@ export function normalizeRow(row, schema) {
 // File to store last sync times
 const LAST_SYNC_FILE = path.resolve('./lastSyncTimes.json');
 
-export function loadLastSyncTimes() {
+export function loadLastSyncTimes(TABLES_TO_SYNC) {
   try {
     if (fs.existsSync(LAST_SYNC_FILE)) {
       const data = fs.readFileSync(LAST_SYNC_FILE, 'utf-8');

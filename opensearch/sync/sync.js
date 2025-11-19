@@ -22,7 +22,7 @@ const TABLES_TO_SYNC = process.env.TABLES_TO_SYNC
   : ["player", "club", "team", "user", "match", "player_result", "player_point"];
 
 export async function incrementalSync() {
-  const lastSyncTimes = loadLastSyncTimes();
+  const lastSyncTimes = loadLastSyncTimes(TABLES_TO_SYNC);
 
   try {
     for (const table of TABLES_TO_SYNC) {
