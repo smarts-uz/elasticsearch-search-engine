@@ -1,13 +1,15 @@
 import { Client } from '@opensearch-project/opensearch';
 import pkg from 'pg';
+import { normalizeRow, loadLastSyncTimes, saveLastSyncTimes } from './utils.js';
+
 const { Pool } = pkg;
-import { normalizeRow} from './utils.js';
+
 const pgPool = new Pool({
-  user: process.env.PGUSER,
-  host: process.env.PGHOST,
-  database: process.env.PGDATABASE,
-  password: process.env.PGPASSWORD,
-  port: process.env.PGPORT,
+  user: process.env.PG_USER,
+  host: process.env.PG_HOST,
+  database: process.env.PG_DATABASE,
+  password: process.env.PG_PASSWORD ,
+  port: process.env.PG_PORT,
 });
 
 const osClient = new Client({
@@ -17,21 +19,15 @@ const osClient = new Client({
 // Tables to sync
 const TABLES_TO_SYNC = process.env.TABLES_TO_SYNC 
   ? process.env.TABLES_TO_SYNC.split(',').map(t => t.trim())
-  : ['player', 'club', 'team'];
+  : ["player", "club", "team", "user", "match", "player_result", "player_point"];
 
-  
-// Last sync time
-let lastSyncTime = new Date(0);
-
-// ===========================
-// 4️⃣ Incremental sync
-// ===========================
 export async function incrementalSync() {
+  const lastSyncTimes = loadLastSyncTimes();
+
   try {
     for (const table of TABLES_TO_SYNC) {
       console.log(`🔄 ${table} jadvali incremental sync qilinmoqda...`);
 
-      // 4.1️⃣ Index yaratish (agar mavjud bo'lmasa)
       await osClient.indices.create({
         index: table,
         body: {
@@ -65,10 +61,9 @@ export async function incrementalSync() {
         }
       }, { ignore: [400] });
 
-      // 4.2️⃣ Faqat yangi yoki o'zgargan yozuvlar
       const { rows } = await pgPool.query(
         `SELECT * FROM "${table}" WHERE updated_at > $1`,
-        [lastSyncTime]
+        [lastSyncTimes[table]]
       );
 
       if (rows.length === 0) {
@@ -76,7 +71,6 @@ export async function incrementalSync() {
         continue;
       }
 
-      // 4.3️⃣ Schema aniqlash
       const schema = {};
       const sample = rows[0];
       for (const key of Object.keys(sample)) {
@@ -85,7 +79,6 @@ export async function incrementalSync() {
         else schema[key] = 'other';
       }
 
-      // 4.4️⃣ Indexlash
       for (const row of rows) {
         const normalizedRow = normalizeRow(row, schema);
         await osClient.index({
@@ -96,10 +89,15 @@ export async function incrementalSync() {
       }
 
       console.log(`✅ ${rows.length} yozuv ${table} dan OpenSearch ga yuklandi.`);
+
+      lastSyncTimes[table] = new Date();
     }
 
-    lastSyncTime = new Date();
+    // 6️⃣ Faylga saqlash
+    saveLastSyncTimes(lastSyncTimes);
+
   } catch (err) {
     console.error('❌ Incremental sync xatolik:', err);
   }
 }
+incrementalSync()

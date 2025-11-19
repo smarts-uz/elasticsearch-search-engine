@@ -1,8 +1,6 @@
 import { Client } from '@opensearch-project/opensearch';
 import pkg from 'pg';
-import fs from 'fs';
-import path from 'path';
-import { normalizeRow } from './utils.js';
+import { normalizeRow, loadLastSyncTimes, saveLastSyncTimes } from './utils.js';
 
 const { Pool } = pkg;
 
@@ -23,46 +21,6 @@ const TABLES_TO_SYNC = process.env.TABLES_TO_SYNC
   ? process.env.TABLES_TO_SYNC.split(',').map(t => t.trim())
   : ["player", "club", "team", "user", "match", "player_result", "player_point"];
 
-// File to store last sync times
-const LAST_SYNC_FILE = path.resolve('./lastSyncTimes.json');
-
-function loadLastSyncTimes() {
-  try {
-    if (fs.existsSync(LAST_SYNC_FILE)) {
-      const data = fs.readFileSync(LAST_SYNC_FILE, 'utf-8');
-      const parsed = JSON.parse(data);
-      // convert strings to Date objects
-      Object.keys(parsed).forEach(key => {
-        parsed[key] = new Date(parsed[key]);
-      });
-      return parsed;
-    }
-  } catch (err) {
-    console.error('❌ Last sync load error:', err);
-  }
-
-  // default: 1970-01-01
-  const defaults = {};
-  TABLES_TO_SYNC.forEach(t => defaults[t] = new Date(0));
-  return defaults;
-}
-
-// Helper: save last sync times
-function saveLastSyncTimes(times) {
-  try {
-    const toSave = {};
-    Object.keys(times).forEach(key => {
-      toSave[key] = times[key].toISOString();
-    });
-    fs.writeFileSync(LAST_SYNC_FILE, JSON.stringify(toSave, null, 2));
-  } catch (err) {
-    console.error('❌ Last sync save error:', err);
-  }
-}
-
-// ===========================
-// Incremental sync
-// ===========================
 export async function incrementalSync() {
   const lastSyncTimes = loadLastSyncTimes();
 
@@ -70,7 +28,6 @@ export async function incrementalSync() {
     for (const table of TABLES_TO_SYNC) {
       console.log(`🔄 ${table} jadvali incremental sync qilinmoqda...`);
 
-      // 1️⃣ Index yaratish (agar mavjud bo'lmasa)
       await osClient.indices.create({
         index: table,
         body: {
@@ -104,7 +61,6 @@ export async function incrementalSync() {
         }
       }, { ignore: [400] });
 
-      // 2️⃣ Faqat yangi yoki o'zgargan yozuvlar
       const { rows } = await pgPool.query(
         `SELECT * FROM "${table}" WHERE updated_at > $1`,
         [lastSyncTimes[table]]
@@ -115,7 +71,6 @@ export async function incrementalSync() {
         continue;
       }
 
-      // 3️⃣ Schema aniqlash
       const schema = {};
       const sample = rows[0];
       for (const key of Object.keys(sample)) {
@@ -124,7 +79,6 @@ export async function incrementalSync() {
         else schema[key] = 'other';
       }
 
-      // 4️⃣ Indexlash
       for (const row of rows) {
         const normalizedRow = normalizeRow(row, schema);
         await osClient.index({
@@ -136,7 +90,6 @@ export async function incrementalSync() {
 
       console.log(`✅ ${rows.length} yozuv ${table} dan OpenSearch ga yuklandi.`);
 
-      // 5️⃣ Jadval bo'yicha last sync time yangilash
       lastSyncTimes[table] = new Date();
     }
 
