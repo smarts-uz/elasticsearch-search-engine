@@ -49,6 +49,7 @@ export async function incrementalSync() {
           },
           mappings: {
             properties: {
+              id_str: { type: 'keyword' },
               name: { type: 'text', analyzer: 'translit_analyzer',search_analyzer: 'translit_analyzer',fielddata:true},
               geo: { type: 'geo_point' },
               agent: { type: 'object' }
@@ -79,6 +80,7 @@ export async function incrementalSync() {
       // 2️⃣ OpenSearchga insert/update
       for (const row of updatedRows) {
         const normalizedRow = normalizeRow(row, schema);
+        normalizedRow.id_str = String(row.id);
         await osClient.index({
           index: table,
           id: row.id,
