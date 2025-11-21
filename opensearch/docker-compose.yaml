@@ -21,6 +21,9 @@ services:
       - 9600:9600  # monitoring port
     networks:
       - opensearch-net
+
+
+      
   sync-service:
     build:
       context: ./sync
@@ -31,7 +34,7 @@ services:
     environment:
       - PGUSER=postgres
       - PGPASSWORD=c21hcnRza29tb2x0ZWFt
-      - PGHOST=192.168.3.56
+      - PGHOST=192.168.3.66
       - PGDATABASE=postgres
       - PGPORT=5444
       - OPENSEARCH_NODE=http://opensearch:9200
